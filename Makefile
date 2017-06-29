@@ -3,6 +3,6 @@ dev:
 .PHONY: dev
 
 production:
-	docker run -it --rm -v $$PWD:/app ruphin/rubydev echo "BUNDLED GEMS"
+	docker run --rm -v $$PWD:/app ruphin/rubydev echo "BUNDLED GEMS"
 	docker build -t ruphin/vickibot .
 	docker push ruphin/vickibot

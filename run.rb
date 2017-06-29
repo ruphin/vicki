@@ -11,6 +11,8 @@ Poloniex.setup do |config|
   config.secret = POLO_API_SECRET
 end
 
+ # Fix logging to stdout in Docker containers with no tty
+$stdout.sync = true
 logger = Logger.new(STDOUT)
 
 def shortETH
