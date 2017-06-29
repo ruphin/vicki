@@ -11,24 +11,29 @@ Poloniex.setup do |config|
   config.secret = POLO_API_SECRET
 end
 
+logger = Logger.new(STDOUT)
+
 def shortETH
-  puts "PLACING SELL ORDER"
+  logger.info "PLACING SELL ORDER"
   limit = (marketPrice(:short) * 0.95).round(8) # We are prepared to sell down to 95% market price
   volume = holding('ETH')
-  puts "PRICE: #{limit} - VOLUME: #{volume}"
-  #Poloniex.sell 'BTC_ETH' limit volume
+  logger.info "PRICE: #{limit} - VOLUME: #{volume}"
+  result = Poloniex.sell('BTC_ETH', limit, volume)
+  logger.info result
 end
 
 def longETH
-  puts "PLACING BUY ORDER"
-  limit = (marketPrice(:long) * 1.05).round(8) # We are prepared to buy up to 105% market price
-  volume = holding('BTC')
-  puts "PRICE: #{limit} - VOLUME: #{volume}"
-  #Poloniex.buy 'BTC_ETH' limit volume
+  logger.info "PLACING BUY ORDER"
+  price = marketPrice(:long)
+  limit = (price * 1.05).round(8) # We are prepared to buy up to 105% market price
+  volume = ((holding('BTC') / price) * 0.95).round(8) # Buy with 95% of our stack to make sure the order doesn't go over budget.
+  logger.info "PRICE: #{limit} - VOLUME: #{volume}"
+  result = Poloniex.buy('BTC_ETH', limit, volume)
+  logger.info result
 end
 
 def holding(currency)
-  return JSON.parse(Poloniex.balances.body)[currency]
+  return JSON.parse(Poloniex.balances.body)[currency].to_f
 end
 
 def marketPrice(position)
@@ -42,28 +47,36 @@ def marketPrice(position)
   end
 end
 
+ # This is the autorization for @ggvangool - an account that only follows Vicki and never tweets
 twitterClient = Twitter::Streaming::Client.new do |config|
-  config.consumer_key        = "CKpfdw8uQLwKz03Prveb98dHO"
+  config.consumer_key        = "YdJEqxgvM6KsgfDZSmkn4c93M"
   config.consumer_secret     = TWITTER_CONSUMER_SECRET
-  config.access_token        = "776866644039794688-ZTXReWmOjv3weNI4nH4fULCAN67HNbe"
+  config.access_token        = "196829257-0WqaIpEpfABiaMUQtyfIeWT7ZAFq7Zltn2vx3uQQ"
   config.access_token_secret = TWITTER_ACCESS_TOKEN_SECRET
 end
 
-VICKI = "834940874643615744"
-
 begin
-  twitterClient.filter(follow: "834940874643615744") do |tweet|
-    puts "VICKI POSTED: #{tweet.text}"
-     if /short on ETHBTC/ =~ tweet.text
-       shortETH
-     elsif /long on ETHBTC/ =~ tweet.text
-       longETH
-     end
+  twitterClient.user() do |tweet|
+    if (tweet.class == Twitter::Tweet)
+      logger.info "Tweet: #{tweet.text}"
+      if /short on ETHBTC/ =~ tweet.text
+        shortETH
+      elsif /long on ETHBTC/ =~ tweet.text
+        longETH
+      end
+    else
+      logger.warn "==================================================="
+      logger.warn "#{tweet.class}: #{tweet.inspect}"
+      logger.warn "==================================================="
+    end
   end
-rescue Twitter::Error::TooManyRequests => error
-  puts "RATE LIMIT REACHED! WAITING 15m"
-  # NOTE: Your process could go to sleep for up to 15 minutes but if you
-  # retry any sooner, it will almost certainly fail with the same exception.
-  sleep 60 * 15
+rescue Exception => e
+  logger.error "==================================================="
+  logger.error "SOMETHING BORKED: #{e.message}"
+  logger.error e.backtrace.inspect
+  logger.error "==================================================="
+  logger.error "WAITING 2m"
+  # NOTE: Twitter API resets rate limits every 15 minutes.
+  sleep 60 * 2
   retry
 end
